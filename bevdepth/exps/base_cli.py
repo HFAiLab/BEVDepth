@@ -9,6 +9,8 @@ from bevdepth.utils.torch_dist import all_gather_object, synchronize
 
 from .nuscenes.base_exp import BEVDepthLightningModel
 
+from hfai.pl import HFAIEnvironment
+from hfai.pl import ModelCheckpointHF
 
 def run_cli(model_class=BEVDepthLightningModel,
             exp_name='base_exp',
@@ -35,7 +37,7 @@ def run_cli(model_class=BEVDepthLightningModel,
     parser.set_defaults(profiler='simple',
                         deterministic=False,
                         max_epochs=24,
-                        accelerator='ddp',
+                        strategy='ddp_bind_numa',
                         num_sanity_val_steps=0,
                         gradient_clip_val=5,
                         limit_val_batches=0,
@@ -47,17 +49,30 @@ def run_cli(model_class=BEVDepthLightningModel,
         pl.seed_everything(args.seed)
 
     model = model_class(**vars(args))
+    output_dir = f'hfai_out_{args.num_nodes}'
+    checkpoint_callback = ModelCheckpointHF(dirpath=output_dir)  # 初始化可以接收集群打断信号的回调类
+    hfai_suspend_ckpt_path = f'{output_dir}/{checkpoint_callback.CHECKPOINT_NAME_SUSPEND}.ckpt'
+    hfai_suspend_ckpt_path = hfai_suspend_ckpt_path if os.path.exists(hfai_suspend_ckpt_path) else None
     if use_ema:
         train_dataloader = model.train_dataloader()
         ema_callback = EMACallback(
             len(train_dataloader.dataset) * args.max_epochs)
-        trainer = pl.Trainer.from_argparse_args(args, callbacks=[ema_callback])
+        trainer = pl.Trainer.from_argparse_args(
+            args, callbacks=[ema_callback, checkpoint_callback],
+            plugins=[HFAIEnvironment()]
+        )
     else:
-        trainer = pl.Trainer.from_argparse_args(args)
+        trainer = pl.Trainer.from_argparse_args(
+            args, callbacks=[checkpoint_callback],
+            plugins=[HFAIEnvironment()]
+        )
     if args.evaluate:
         trainer.test(model, ckpt_path=args.ckpt_path)
     elif args.predict:
-        predict_step_outputs = trainer.predict(model, ckpt_path=args.ckpt_path)
+        predict_step_outputs = trainer.predict(
+            model,
+            ckpt_path=args.ckpt_path
+        )
         all_pred_results = list()
         all_img_metas = list()
         for predict_step_output in predict_step_outputs:
@@ -74,4 +89,4 @@ def run_cli(model_class=BEVDepthLightningModel,
         model.evaluator._format_bbox(all_pred_results, all_img_metas,
                                      os.path.dirname(args.ckpt_path))
     else:
-        trainer.fit(model)
+        trainer.fit(model, ckpt_path=hfai_suspend_ckpt_path)

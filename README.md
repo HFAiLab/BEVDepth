@@ -65,6 +65,10 @@ python scripts/gen_info.py
 ```
 python [EXP_PATH] --amp_backend native -b 8 --gpus 8
 ```
+**Submit Task.**
+```
+hfai python [EXP_PATH] --amp_backend native -b 8 --gpus 8 --num_nodes 2 -- --nodes 2 -i ubuntu2004-cu113
+```
 **Eval.**
 ```
 python [EXP_PATH] --ckpt_path [CKPT_PATH] -e -b 8 --gpus 8

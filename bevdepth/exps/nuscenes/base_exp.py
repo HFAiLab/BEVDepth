@@ -228,9 +228,10 @@ class BEVDepthLightningModel(LightningModule):
         self.depth_channels = int(
             (self.dbound[1] - self.dbound[0]) / self.dbound[2])
         self.use_fusion = False
-        self.train_info_paths = os.path.join(self.data_root, 'nuscenes_infos_train.pkl')    
-        self.val_info_paths = os.path.join(self.data_root, 'nuscenes_infos_val.pkl')
-        self.predict_info_paths = os.path.join(self.data_root, 'nuscenes_infos_test.pkl')
+        self.train_info_paths = os.path.join(self.data_root, 'nuscenes_infos_train_bevdepth_new_version.pkl')
+        self.val_info_paths = os.path.join(self.data_root, 'nuscenes_infos_val_bevdepth_new_version.pkl')
+        self.predict_info_paths = os.path.join(self.data_root, 'nuscenes_infos_test_bevdepth_new_version.pkl')
+
 
     def forward(self, sweep_imgs, mats):
         return self.model(sweep_imgs, mats)
